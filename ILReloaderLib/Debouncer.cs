@@ -27,7 +27,7 @@ internal class Debouncer
 	private void TimerCallback(string filePath)
 	{
 		changes.TryRemove(filePath, out var timer);
-		timer.Dispose();
+		timer?.Dispose();
 		action(filePath);
 	}
 }
