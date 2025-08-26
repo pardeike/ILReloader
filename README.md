@@ -8,9 +8,13 @@ This repository is a prototype playground for a library 'ILReloaderLib' that I a
 
 The idea is to create a minimal console application 'TestApplication' that will load a test mod 'TestMod' and run it to implement some features. The application uses the 'ILReloaderLib' to detect changes in the mods dll and the library will reload the changed dll and patch the annotated methods.  
 
-To run the solution, simply enter  
-`> .BuildTestApplication.exe TestMod.dll` (for Windows)  
-TODO: make this work under Linux  
+To run the solution:
+
+- **Windows**: `Build/TestApplication.exe TestMod.dll`
+- **Linux**:
+  1. Install [Mono](https://www.mono-project.com/) and the .NET SDK.
+  2. Run `dotnet build` to compile the projects.
+  3. Execute `mono Build/TestApplication.exe TestMod.dll`.
 
 A typical run has this output:  
 ```
