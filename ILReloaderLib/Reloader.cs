@@ -18,6 +18,8 @@ public class Reloader
 				SymbolExtensions.GetMethodInfo(() => LoadOriginalAssembly(""))
 			);
 		}
+
+		public static bool Prefix(MethodBase ___method) => ___method.ReflectedType == null;
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -25,10 +27,14 @@ public class Reloader
 	{
 		$"Reloader starting...".LogMessage();
 		var harmony = new Harmony("brrainz.doorstop");
-		var original = AccessTools.Method("TestApplication.App:RunLoop");
+		var original1 = AccessTools.Method("TestApplication.App:RunLoop");
 		var transpiler = SymbolExtensions.GetMethodInfo(() => PatchClass.Transpiler(default));
-		var patch = harmony.Patch(original, transpiler: new HarmonyMethod(transpiler));
-		$"Patch result: {patch.FullDescription()}".LogMessage();
+		var patch1 = harmony.Patch(original1, transpiler: new HarmonyMethod(transpiler));
+		$"Patch result: {patch1.FullDescription()}".LogMessage();
+		var original2 = AccessTools.Method("HarmonyLib.MethodBodyReader:HandleNativeMethod");
+		var prefix = SymbolExtensions.GetMethodInfo(() => PatchClass.Prefix(default));
+		var patch2 = harmony.Patch(original2, prefix: new HarmonyMethod(prefix));
+		$"Patch result: {patch2.FullDescription()}".LogMessage();
 		instance = new Reloader();
 		AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += OnReflectionOnlyAssemblyResolve;
 		$"Reloader started".LogMessage();
@@ -59,23 +65,6 @@ public class Reloader
 		var requested = new AssemblyName(e.Name);
 		var simple = requested.Name;
 
-		var ro1 = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => Tools.NamesMatch(a.GetName(), requested));
-		if (ro1 != null)
-		{
-			if (ro1.ReflectionOnly)
-				throw new TypeLoadException($"Resolved {ro1.FullName} but it is reflection-only");
-			return ro1;
-		}
-
-		var ro2 = AppDomain.CurrentDomain.ReflectionOnlyGetAssemblies().FirstOrDefault(a => Tools.NamesMatch(a.GetName(), requested));
-		if (ro2 != null)
-		{
-			$"Resolved existing reflection assembly: {ro2}".LogWarning();
-			return ro2;
-		}
-
-		// 2) If it's already execution-loaded with a real file path, reuse that path
-		//    to load a REFLECTION-ONLY copy (contexts are separate).
 		var execLoaded = AppDomain.CurrentDomain.GetAssemblies()
 			.FirstOrDefault(a =>
 			{
@@ -116,7 +105,7 @@ public class Reloader
 		$"IN: {moduleGUID} {methodToken} -> {replacementMethod.FullDescription()}".LogWarning();
 
 		var t_cInstr = typeof(IEnumerable<CodeInstruction>);
-		var attributes = System.Reflection.MethodAttributes.Private | System.Reflection.MethodAttributes.Static;
+		var attributes = System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Static;
 		var dm = new DynamicMethod($"TransientTranspiler{++counter}", attributes, CallingConventions.Standard, t_cInstr, [t_cInstr, typeof(ILGenerator)], typeof(Reloader), true);
 		var il = dm.GetILGenerator();
 		il.Emit(OpCodes.Ldstr, moduleGUID);
@@ -146,10 +135,28 @@ public class Reloader
 		return instructions;
 	}
 
+	static IEnumerable<Type> GetTypesSafe(Assembly assembly)
+	{
+		try
+		{
+			return assembly.GetTypes();
+		}
+		catch (ReflectionTypeLoadException ex)
+		{
+			$"Warning: Some types could not be loaded from assembly {assembly.FullName}".LogWarning();
+			foreach (var loaderException in ex.LoaderExceptions)
+			{
+				if (loaderException != null)
+					$"LoaderException: {loaderException.Message}".LogWarning();
+			}
+			return ex.Types.Where(t => t != null);
+		}
+	}
+
 	static void Patch(Assembly newAssembly)
 	{
 		var harmony = new Harmony("brrainz.reloader");
-		newAssembly.GetTypes().SelectMany(Tools.AllReloadableMembers)
+		GetTypesSafe(newAssembly).SelectMany(Tools.AllReloadableMembers)
 			.Do(replacementMethod =>
 			{
 				if (reloadableMembers.TryGetValue(replacementMethod.Id(), out var originalMethod))

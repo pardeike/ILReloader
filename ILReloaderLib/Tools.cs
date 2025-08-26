@@ -31,8 +31,6 @@ internal static class Tools
 	internal static void LogWarning(this string log) => Console.WriteLine($"[Warn] {log}");
 	internal static void LogError(this string log) => Console.WriteLine($"[Error] {log}");
 
-	internal static bool ReflectIsReloadable(this MethodBase method) => method.GetCustomAttributesData().Any(a => a.GetType().Name == reloadableTypeName);
-	internal static bool IsReloadable(this MethodBase method) => method.GetCustomAttributes().Any(a => a.GetType().Name == reloadableTypeName);
 	internal static bool IsReflectionReloadable(this MethodBase method) => method.GetCustomAttributesData().Any(d => d.AttributeType.Name == reloadableTypeName);
 
 	internal static string WithoutFileExtension(this string filePath)
@@ -56,9 +54,9 @@ internal static class Tools
 
 	internal static IEnumerable<MethodBase> AllReloadableMembers(this Type type)
 	{
-		foreach (var member in GetDeclaredMethods(type).Where(IsReloadable))
+		foreach (var member in GetDeclaredMethods(type).Where(IsReflectionReloadable))
 			yield return member;
-		foreach (var member in GetDeclaredConstructors(type).Where(IsReloadable))
+		foreach (var member in GetDeclaredConstructors(type).Where(IsReflectionReloadable))
 			yield return member;
 	}
 
