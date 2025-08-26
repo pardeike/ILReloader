@@ -1,6 +1,7 @@
 ﻿using HarmonyLib;
 using Mono.Cecil;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -149,7 +150,25 @@ public class Reloader
 	static void Patch(Assembly newAssembly)
 	{
 		var harmony = new Harmony("brrainz.reloader");
-		newAssembly.GetTypes().SelectMany(Tools.AllReloadableMembers)
+		
+		Type[] types;
+		try
+		{
+			types = newAssembly.GetTypes();
+		}
+		catch (ReflectionTypeLoadException ex)
+		{
+			$"Warning: Some types could not be loaded from assembly {newAssembly.FullName}".LogWarning();
+			foreach (var loaderException in ex.LoaderExceptions)
+			{
+				if (loaderException != null)
+					$"LoaderException: {loaderException.Message}".LogWarning();
+			}
+			// Use only the types that loaded successfully
+			types = ex.Types.Where(t => t != null).ToArray();
+		}
+		
+		types.SelectMany(Tools.AllReloadableMembers)
 			.Do(replacementMethod =>
 			{
 				if (reloadableMembers.TryGetValue(replacementMethod.Id(), out var originalMethod))
