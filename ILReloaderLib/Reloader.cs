@@ -186,27 +186,20 @@ public class Reloader
 		return assembly;
 	}
 
-	static readonly ConcurrentDictionary<string, int> versionBumps = [];
+	static readonly ConcurrentDictionary<string, int> versionBumps = new();
 	static Assembly ReloadAssembly(string path, bool reloading)
 	{
+		// can maybe improved by not using Cecil and instead doing this:
+		// https://chatgpt.com/c/68ae324c-793c-8322-b316-82043a43200c
+		//
 		if (reloading)
 		{
-			int revisionDiff;
-			lock (versionBumps)
-			{
-				if (versionBumps.TryGetValue(path, out revisionDiff))
-					revisionDiff += 1;
-				else
-					revisionDiff = 1;
-				versionBumps[path] = revisionDiff;
-			}
-
 			using var readStream = File.OpenRead(path);
 			var assm = AssemblyDefinition.ReadAssembly(readStream);
 			var oldVersion = assm.Name.Version;
-			var newVersion = new Version(oldVersion.Major, oldVersion.Minor, oldVersion.Build, oldVersion.Revision + revisionDiff);
+			var bump = versionBumps.AddOrUpdate(path, 1, (_, old) => old + 1);
+			var newVersion = new Version(oldVersion.Major, oldVersion.Minor, oldVersion.Build, oldVersion.Revision + bump);
 			assm.Name = new AssemblyNameDefinition(assm.Name.Name, newVersion);
-			assm.MainModule.Name = assm.MainModule.Name + "_" + revisionDiff;
 
 			$"reloading {path}".LogMessage();
 			using var writeStream = new MemoryStream();
