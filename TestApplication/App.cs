@@ -22,6 +22,7 @@ public class App
 
 	public static void RunLoop(string modToLoad)
 	{
+		// app loads and locks dlls on purpose to show that ilreloader works around that
 		var assembly = Assembly.LoadFrom(modToLoad);
 
 		// find all types implementing IAppDialog

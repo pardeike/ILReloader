@@ -29,12 +29,10 @@ public class Reloader
 		var harmony = new Harmony("brrainz.doorstop");
 		var original1 = AccessTools.Method("TestApplication.App:RunLoop");
 		var transpiler = SymbolExtensions.GetMethodInfo(() => PatchClass.Transpiler(default));
-		var patch1 = harmony.Patch(original1, transpiler: new HarmonyMethod(transpiler));
-		$"Patch result: {patch1.FullDescription()}".LogMessage();
+		_ = harmony.Patch(original1, transpiler: new HarmonyMethod(transpiler));
 		var original2 = AccessTools.Method("HarmonyLib.MethodBodyReader:HandleNativeMethod");
 		var prefix = SymbolExtensions.GetMethodInfo(() => PatchClass.Prefix(default));
-		var patch2 = harmony.Patch(original2, prefix: new HarmonyMethod(prefix));
-		$"Patch result: {patch2.FullDescription()}".LogMessage();
+		_ = harmony.Patch(original2, prefix: new HarmonyMethod(prefix));
 		instance = new Reloader();
 		AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += OnReflectionOnlyAssemblyResolve;
 		$"Reloader started".LogMessage();
@@ -78,7 +76,7 @@ public class Reloader
 		{
 			try
 			{
-				var ro3 = Assembly.ReflectionOnlyLoadFrom(execLoaded.Location);
+				var ro3 = Assembly.ReflectionOnlyLoad(File.ReadAllBytes(execLoaded.Location));
 				$"Resolved new reflection assembly: {ro3}".LogWarning();
 				return ro3;
 			}
@@ -231,16 +229,17 @@ public class Reloader
 				versionBumps[path] = revisionDiff;
 			}
 
-			var assm = AssemblyDefinition.ReadAssembly(path);
+			using var readStream = File.OpenRead(path);
+			var assm = AssemblyDefinition.ReadAssembly(readStream);
 			var oldVersion = assm.Name.Version;
 			var newVersion = new Version(oldVersion.Major, oldVersion.Minor, oldVersion.Build, oldVersion.Revision + revisionDiff);
 			assm.Name = new AssemblyNameDefinition(assm.Name.Name, newVersion);
 			assm.MainModule.Name = assm.MainModule.Name + "_" + revisionDiff;
 
 			$"reloading {path}".LogMessage();
-			using var stream = new MemoryStream();
-			assm.Write(stream, new WriterParameters { WriteSymbols = false });
-			return Assembly.ReflectionOnlyLoad(stream.ToArray());
+			using var writeStream = new MemoryStream();
+			assm.Write(writeStream, new WriterParameters { WriteSymbols = false });
+			return Assembly.ReflectionOnlyLoad(writeStream.ToArray());
 		}
 
 		$"loading {path}".LogMessage();

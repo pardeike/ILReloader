@@ -23,12 +23,17 @@ public class ModDialog : IAppDialog
 {
 	private DialogConfig myConfig;
 
-	public void Prepare(DialogConfig config) => myConfig = config;
+	[Reloadable]
+	public void Prepare(DialogConfig config)
+	{
+		Console.WriteLine("TEST 1"); // for testing, edit this line and build so the dll changes
+		myConfig = config;
+	}
 
 	[Reloadable]
 	public void Show()
 	{
-		Console.WriteLine("TEST 001"); // for testing, edit this line and build so the dll changes
+		Console.WriteLine("TEST 2"); // for testing, edit this line and build so the dll changes
 		Console.WriteLine($"Showing mod dialog with message: {myConfig.message}");
 	}
 }
