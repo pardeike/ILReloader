@@ -1,6 +1,6 @@
 # ILReloader Demo  
 
-This repository is a prototype playground for a library 'ILReloaderLib' that I am developing. In order to develop and test it, a more complex setup is needed and is grouped here under one solution containing three .NET 4.7.2 projects (the aim is to support Unity):  
+This repository is a playground for a library 'ILReloaderLib' that allows for hot reloading of changed mods. In order to develop and test it, a more complex setup is needed and is grouped here under one solution containing three projects:  
 
 - TestApplication  
 - ILReloaderLib  
@@ -38,11 +38,11 @@ Showing mod dialog with message: hello
 Enter message (or 'bye' to exit):
 ```
 
-Now it should be able to edit the code in TestMod.ModDialog::Show and a build should replace the dll, which will automatically detected by ILReloaderLib and the reload and patching will happen:  
+Now one should be able to edit the code in TestMod.ModDialog::Show and a build should replace the dll, which will automatically detected by ILReloaderLib and the reload and patching will happen:  
 ```
 [Info] reloading C:UsersBrrainzDesktopILReloaderModsTestMod.dll
-// if patching is successful, the input loop can be continued but with the new code
+// the input loop continues but with the new code
 ```
 
-This code is work in progress  
+ENJOY 
 /Brrainz
