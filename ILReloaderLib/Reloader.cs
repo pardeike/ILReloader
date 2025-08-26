@@ -161,7 +161,7 @@ public class Reloader
 				{
 					$"patching {originalMethod.FullDescription()} with {replacementMethod}".LogMessage();
 					replacementMembers[originalMethod.Id()] = replacementMethod;
-					harmony.UnpatchAll("brrainz.reloader");
+					harmony.Unpatch(originalMethod, HarmonyPatchType.Transpiler, harmony.Id);
 					var transpilerFactory = new HarmonyMethod(SymbolExtensions.GetMethodInfo(() => TranspilerFactory(default)));
 					try
 					{
