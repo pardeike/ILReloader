@@ -25,7 +25,6 @@ public class Reloader
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	public static void Start()
 	{
-		$"Reloader starting...".LogMessage();
 		var harmony = new Harmony("brrainz.doorstop");
 		var original1 = AccessTools.Method("TestApplication.App:RunLoop");
 		var transpiler = SymbolExtensions.GetMethodInfo(() => PatchClass.Transpiler(default));
@@ -35,7 +34,7 @@ public class Reloader
 		_ = harmony.Patch(original2, prefix: new HarmonyMethod(prefix));
 		instance = new Reloader();
 		AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve += OnReflectionOnlyAssemblyResolve;
-		$"Reloader started".LogMessage();
+		$"reloader started".LogMessage();
 	}
 
 	internal static Reloader instance;
@@ -54,7 +53,7 @@ public class Reloader
 		}
 		catch (Exception ex)
 		{
-			$"Error during reloading {path}: {ex}".LogError();
+			$"error during reloading {path}: {ex}".LogError();
 		}
 	});
 
@@ -66,26 +65,19 @@ public class Reloader
 		var execLoaded = AppDomain.CurrentDomain.GetAssemblies()
 			.FirstOrDefault(a =>
 			{
-				// Dynamic/byte-load have Location == "" – skip those
-				if (string.IsNullOrEmpty(a.Location))
+				if (string.IsNullOrEmpty(a.Location)) // Dynamic/byte-load have Location == "" – skip those
 					return false;
 				return Tools.NamesMatch(a.GetName(), requested) || a.GetName().Name.Equals(simple, StringComparison.OrdinalIgnoreCase);
 			});
 
 		if (execLoaded != null && !string.IsNullOrEmpty(execLoaded.Location) && File.Exists(execLoaded.Location))
 		{
-			try
-			{
-				var ro3 = Assembly.ReflectionOnlyLoad(File.ReadAllBytes(execLoaded.Location));
-				$"Resolved new reflection assembly: {ro3}".LogWarning();
-				return ro3;
-			}
-			catch
-			{
-			}
+			var assembly = Assembly.ReflectionOnlyLoad(File.ReadAllBytes(execLoaded.Location));
+			$"resolved new reflection assembly: {assembly}".LogWarning();
+			return assembly;
 		}
 
-		$"Failed to resolve assembly: {simple}".LogError();
+		$"failed to resolve assembly: {simple}".LogError();
 		return null;
 	}
 
@@ -94,13 +86,12 @@ public class Reloader
 	{
 		if (replacementMembers.TryGetValue(originalMethod.Id(), out var replacementMethod) == false)
 		{
-			$"Could not find replacement method".LogError();
+			$"could not find replacement method".LogError();
 			return null;
 		}
 
 		var moduleGUID = replacementMethod.Module.ModuleVersionId.ToString();
 		var methodToken = replacementMethod.MetadataToken;
-		$"IN: {moduleGUID} {methodToken} -> {replacementMethod.FullDescription()}".LogWarning();
 
 		var t_cInstr = typeof(IEnumerable<CodeInstruction>);
 		var attributes = System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Static;
@@ -116,18 +107,8 @@ public class Reloader
 
 	static IEnumerable<CodeInstruction> GetInstructions(string moduleGUID, int methodToken, ILGenerator il)
 	{
-		$"Getting instructions for {moduleGUID} {methodToken}".LogWarning();
-		MethodBase replacementMethod;
-		try
-		{
-			replacementMethod = Tools.ReflectionOnlyGetMethodByModuleAndToken(moduleGUID, methodToken);
-		}
-		finally
-		{
-		}
-		$"OUT: {moduleGUID} {methodToken} -> {(replacementMethod?.FullDescription() ?? "NULL")}".LogWarning();
+		var replacementMethod = Tools.ReflectionOnlyGetMethodByModuleAndToken(moduleGUID, methodToken);
 		var instructions = PatchProcessor.GetOriginalInstructions(replacementMethod, il);
-		$"Got {instructions.Count()} replacement instructions".LogWarning();
 		for (var i = 0; i < instructions.Count(); i++)
 			instructions[i].operand = Tools.ConvertOperand(instructions[i].operand, il);
 		return instructions;
@@ -141,11 +122,11 @@ public class Reloader
 		}
 		catch (ReflectionTypeLoadException ex)
 		{
-			$"Warning: Some types could not be loaded from assembly {assembly.FullName}".LogWarning();
+			$"Wwarning: Some types could not be loaded from assembly {assembly.FullName}".LogWarning();
 			foreach (var loaderException in ex.LoaderExceptions)
 			{
 				if (loaderException != null)
-					$"LoaderException: {loaderException.Message}".LogWarning();
+					$"loader exception: {loaderException.Message}".LogWarning();
 			}
 			return ex.Types.Where(t => t != null);
 		}
@@ -163,16 +144,7 @@ public class Reloader
 					replacementMembers[originalMethod.Id()] = replacementMethod;
 					harmony.Unpatch(originalMethod, HarmonyPatchType.Transpiler, harmony.Id);
 					var transpilerFactory = new HarmonyMethod(SymbolExtensions.GetMethodInfo(() => TranspilerFactory(default)));
-					try
-					{
-						harmony.Patch(originalMethod, transpiler: transpilerFactory);
-						$"Patch successful".LogWarning();
-					}
-					catch
-					{
-						$"Patch unsuccessful".LogWarning();
-						throw;
-					}
+					harmony.Patch(originalMethod, transpiler: transpilerFactory);
 				}
 			});
 	}
@@ -208,7 +180,7 @@ public class Reloader
 		assembly.GetTypes().SelectMany(type => Tools.AllReloadableMembers(type))
 			.Do(member =>
 			{
-				$"registered {member.FullDescription()} for reloading [{member.Id()}]".LogMessage();
+				$"registered: {member.DeclaringType.FullName}.{member.Name}".LogMessage();
 				reloadableMembers[member.Id()] = member;
 			});
 		return assembly;

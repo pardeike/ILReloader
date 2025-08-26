@@ -16,7 +16,6 @@ public class App
 		}
 
 		var modToLoad = "Mods" + Path.DirectorySeparatorChar + args[0];
-		Console.WriteLine($"Loading mod from: {modToLoad}");
 		RunLoop(modToLoad);
 	}
 
@@ -25,25 +24,26 @@ public class App
 		// app loads and locks dlls on purpose to show that ilreloader works around that
 		var assembly = Assembly.LoadFrom(modToLoad);
 
-		// find all types implementing IAppDialog
-		var type = assembly.GetTypes().FirstOrDefault(t => typeof(IAppDialog).IsAssignableFrom(t) && !t.IsAbstract);
+		// find all types implementing IMod
+		var type = assembly.GetTypes().FirstOrDefault(t => typeof(IMod).IsAssignableFrom(t) && !t.IsAbstract);
 		if (type == null)
 		{
 			Console.Error.WriteLine("No type implementing IAppDialog found in the assembly");
 			return;
 		}
-		Console.WriteLine($"Found dialog: {type.FullName}");
+		Console.WriteLine($"Found mod: {type.FullName}");
+		var mod = (IMod)Activator.CreateInstance(type);
 
 		while (true)
 		{
-			Console.WriteLine("Enter message (or 'bye' to exit):");
+			Console.Write("\nEnter message (or 'bye' to exit): ");
 			var message = Console.ReadLine().Trim();
 			if (message == "bye")
 			{
 				Console.WriteLine("Exiting");
 				return;
 			}
-			var dialog = (IAppDialog)Activator.CreateInstance(type);
+			var dialog = mod.GetDialog();
 			dialog.Prepare(new DialogConfig() { message = message });
 			dialog.Show();
 		}

@@ -6,22 +6,31 @@ namespace TestMod;
 [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method)]
 internal class ReloadableAttribute : Attribute { }
 
-public class Mod
+public class Mod : IMod
 {
+	private ModDialog dialog = new();
+	public IAppDialog GetDialog() => dialog;
+
 	static Mod()
 	{
-		Console.WriteLine("TestMod static constructor");
+		Console.WriteLine("--> TestMod.Mod static constructor");
 	}
 
 	public Mod()
 	{
 		Console.WriteLine("TestMod loaded");
 	}
+
 }
 
 public class ModDialog : IAppDialog
 {
 	private DialogConfig myConfig;
+
+	static ModDialog()
+	{
+		Console.WriteLine("--> TestMod.ModDialog static constructor");
+	}
 
 	[Reloadable]
 	public void Prepare(DialogConfig config)
