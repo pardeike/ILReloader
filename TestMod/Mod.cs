@@ -2,6 +2,10 @@
 
 namespace TestMod;
 
+// Custom attribute to mark methods or constructors as reloadable
+[AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method)]
+internal class ReloadableAttribute : Attribute { }
+
 public class Mod
 {
 	static Mod()
@@ -21,9 +25,10 @@ public class ModDialog : IAppDialog
 
 	public void Prepare(DialogConfig config) => myConfig = config;
 
+	[Reloadable]
 	public void Show()
 	{
-		Console.WriteLine("TEST 004");
+		Console.WriteLine("TEST 001");
 		Console.WriteLine($"Showing mod dialog with message: {myConfig.message}");
 	}
 }
