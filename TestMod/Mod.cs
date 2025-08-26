@@ -28,7 +28,7 @@ public class ModDialog : IAppDialog
 	[Reloadable]
 	public void Show()
 	{
-		Console.WriteLine("TEST 001");
+		Console.WriteLine("TEST 002 - HOT RELOADED!");
 		Console.WriteLine($"Showing mod dialog with message: {myConfig.message}");
 	}
 }
