@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net472</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+		<OutputPath>$(SolutionDir)Mods\</OutputPath>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\TestApplication\TestApplication.csproj">
+			<Private>false</Private>
+		</ProjectReference>
+		<ProjectReference Include="..\ILReloaderLib\ILReloaderLib.csproj">
+			<Private>false</Private>
+		</ProjectReference>
+	</ItemGroup>
+
+</Project>

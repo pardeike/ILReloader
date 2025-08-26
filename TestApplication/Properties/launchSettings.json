@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "TestApplication": {
+      "commandName": "Project",
+      "commandLineArgs": "TestMod.dll",
+      "workingDirectory": "$(SolutionDir)"
+    }
+  }
+}
