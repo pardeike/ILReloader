@@ -125,16 +125,39 @@ internal static class Tools
 		return true;
 	}
 
+	static readonly Dictionary<short, System.Reflection.Emit.OpCode> opcodeCache = CreateOpcodeCache();
+
+	static Dictionary<short, System.Reflection.Emit.OpCode> CreateOpcodeCache()
+	{
+		var cache = new Dictionary<short, System.Reflection.Emit.OpCode>();
+		
+		// Get all System.Reflection.Emit OpCodes and index them by their value
+		var emitOpcodeFields = typeof(System.Reflection.Emit.OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
+			.Where(f => f.FieldType == typeof(System.Reflection.Emit.OpCode));
+		
+		foreach (var field in emitOpcodeFields)
+		{
+			var opcode = (System.Reflection.Emit.OpCode)field.GetValue(null);
+			cache[opcode.Value] = opcode;
+		}
+		
+		return cache;
+	}
+
 	internal static System.Reflection.Emit.OpCode ConvertOpcode(Mono.Cecil.Cil.OpCode opcode)
 	{
-		// TODO implement
-		return default;
+		if (opcodeCache.TryGetValue(opcode.Value, out var emitOpcode))
+			return emitOpcode;
+		
+		throw new NotSupportedException($"Opcode {opcode.Name} (0x{opcode.Value:X4}) is not supported");
 	}
 
 	internal static object ConvertOperand(object operand, ILGenerator il)
 	{
 		if (operand is MethodDefinition method)
 			operand = ResolveMethodBase(method);
+		else if (operand is MethodReference methodRef)
+			operand = ResolveMethodBase(methodRef);
 		else if (operand is PropertyReference property)
 			operand = ResolveProperty(property);
 		else if (operand is FieldReference field)
@@ -158,6 +181,26 @@ internal static class Tools
 		for (var i = 0; i < generics.Length; i++)
 			genericTypes[i] = ResolveType(generics[i]);
 		return DeclaredMethod(declaringType, methodDefinition.Name, parameterTypes, genericTypes.Length == 0 ? null : genericTypes);
+	}
+
+	internal static MethodBase ResolveMethodBase(MethodReference methodReference)
+	{
+		var declaringType = ResolveType(methodReference.DeclaringType);
+		var parameters = methodReference.Parameters.ToArray();
+		var parameterTypes = new Type[parameters.Length];
+		for (var i = 0; i < parameters.Length; i++)
+			parameterTypes[i] = ResolveType(parameters[i].ParameterType);
+		
+		// Handle generic method references
+		if (methodReference is GenericInstanceMethod genericMethod)
+		{
+			var genericTypes = new Type[genericMethod.GenericArguments.Count];
+			for (var i = 0; i < genericMethod.GenericArguments.Count; i++)
+				genericTypes[i] = ResolveType(genericMethod.GenericArguments[i]);
+			return DeclaredMethod(declaringType, methodReference.Name, parameterTypes, genericTypes);
+		}
+		
+		return DeclaredMethod(declaringType, methodReference.Name, parameterTypes);
 	}
 
 	internal static PropertyInfo ResolveProperty(PropertyReference property)
