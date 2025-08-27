@@ -5,12 +5,12 @@ namespace ILReloaderLib;
 internal class Debouncer
 {
 	private readonly ConcurrentDictionary<string, Timer> changes = [];
-	private readonly TimeSpan debouncePeriod;
+	private readonly int debouncePeriod;
 	private readonly Action<string> action;
 
 	internal Debouncer(TimeSpan debouncePeriod, Action<string> action)
 	{
-		this.debouncePeriod = debouncePeriod;
+		this.debouncePeriod = (int)debouncePeriod.TotalSeconds;
 		this.action = action;
 	}
 
@@ -18,10 +18,10 @@ internal class Debouncer
 	{
 		if (changes.TryGetValue(filePath, out var existingTimer))
 		{
-			_ = existingTimer.Change(debouncePeriod, Timeout.InfiniteTimeSpan);
+			_ = existingTimer.Change(debouncePeriod, Timeout.Infinite);
 			return;
 		}
-		changes[filePath] = new Timer(_ => TimerCallback(filePath), null, debouncePeriod, Timeout.InfiniteTimeSpan);
+		changes[filePath] = new Timer(_ => TimerCallback(filePath), null, debouncePeriod, Timeout.Infinite);
 	}
 
 	private void TimerCallback(string filePath)

@@ -31,7 +31,7 @@ internal static class Tools
 	internal static void LogError(this string log) { }
 #endif
 
-	internal static bool IsReflectionReloadable(this MethodBase method) => method.GetCustomAttributesData().Any(d => d.AttributeType.Name == reloadableTypeName);
+	internal static bool IsReloadable(this MethodBase method) => method.GetCustomAttributes(true).Any(a => a.GetType().Name == reloadableTypeName);
 	internal static bool IsCecilReloadable(this MethodDefinition method) => method.CustomAttributes.Any(a => a.AttributeType.Name == reloadableTypeName);
 
 	static Dictionary<short, System.Reflection.Emit.OpCode> CreateOpcodeCache()
@@ -80,9 +80,9 @@ internal static class Tools
 
 	internal static IEnumerable<MethodBase> AllReloadableMembers(this Type type)
 	{
-		foreach (var member in GetDeclaredMethods(type).Where(IsReflectionReloadable))
+		foreach (var member in GetDeclaredMethods(type).Where(IsReloadable))
 			yield return member;
-		foreach (var member in GetDeclaredConstructors(type).Where(IsReflectionReloadable))
+		foreach (var member in GetDeclaredConstructors(type).Where(IsReloadable))
 			yield return member;
 	}
 
@@ -104,8 +104,8 @@ internal static class Tools
 		if (bt != null && bt.Length > 0 && TokenEquals(at, bt) == false)
 			return false;
 
-		return string.IsNullOrEmpty(b.CultureName)
-			|| string.Equals(a.CultureName ?? "", b.CultureName, StringComparison.OrdinalIgnoreCase);
+		return string.IsNullOrEmpty(b.CultureInfo.Name)
+			|| string.Equals(a.CultureInfo.Name ?? "", b.CultureInfo.Name, StringComparison.OrdinalIgnoreCase);
 	}
 
 	internal static bool TokenEquals(byte[] a, byte[] b)
