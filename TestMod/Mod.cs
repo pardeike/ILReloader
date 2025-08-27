@@ -1,4 +1,5 @@
-﻿using TestApplication;
+﻿using System.Runtime.CompilerServices;
+using TestApplication;
 
 namespace TestMod;
 
@@ -8,41 +9,43 @@ internal class ReloadableAttribute : Attribute { }
 
 public class Mod : IMod
 {
-	private ModDialog dialog = new();
-	public IAppDialog GetDialog() => dialog;
+    private ModDialog dialog = new();
 
-	static Mod()
-	{
-		Console.WriteLine("--> TestMod.Mod static constructor");
-	}
+    public IAppDialog GetDialog() => dialog;
 
-	public Mod()
-	{
-		Console.WriteLine("TestMod loaded");
-	}
+    static Mod()
+    {
+        Console.WriteLine("--> TestMod.Mod static constructor");
+    }
 
+    public Mod()
+    {
+        Console.WriteLine("TestMod loaded");
+    }
 }
 
 public class ModDialog : IAppDialog
 {
-	private DialogConfig myConfig;
+    private DialogConfig myConfig;
 
-	static ModDialog()
-	{
-		Console.WriteLine("--> TestMod.ModDialog static constructor");
-	}
+    static ModDialog()
+    {
+        Console.WriteLine("--> TestMod.ModDialog static constructor");
+    }
 
-	[Reloadable]
-	public void Prepare(DialogConfig config)
-	{
-		Console.WriteLine("TEST 1"); // for testing, edit this line and build so the dll changes
-		myConfig = config;
-	}
+    [Reloadable]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public void Prepare(DialogConfig config)
+    {
+        Console.WriteLine("TEST 1"); // for testing, edit this line and build so the dll changes
+        myConfig = config;
+    }
 
-	[Reloadable]
-	public void Show()
-	{
-		Console.WriteLine("TEST 2"); // for testing, edit this line and build so the dll changes
-		Console.WriteLine($"Showing mod dialog with message: {myConfig.message}");
-	}
+    [Reloadable]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public void Show()
+    {
+        Console.WriteLine("TEST 2"); // for testing, edit this line and build so the dll changes
+        Console.WriteLine($"Showing mod dialog with message: {myConfig.message}");
+    }
 }

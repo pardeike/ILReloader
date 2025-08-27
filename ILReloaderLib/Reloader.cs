@@ -1,9 +1,7 @@
-﻿using HarmonyLib;
-using Mono.Cecil;
-using System.Collections.Concurrent;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using HarmonyLib;
 
 namespace ILReloaderLib;
 
@@ -94,7 +92,7 @@ public class Reloader
 		var methodToken = replacementMethod.MetadataToken;
 
 		var t_cInstr = typeof(IEnumerable<CodeInstruction>);
-		var attributes = System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Static;
+		var attributes = MethodAttributes.Public | MethodAttributes.Static;
 		var dm = new DynamicMethod($"TransientTranspiler{++counter}", attributes, CallingConventions.Standard, t_cInstr, [t_cInstr, typeof(ILGenerator)], typeof(Reloader), true);
 		var il = dm.GetILGenerator();
 		il.Emit(OpCodes.Ldstr, moduleGUID);
@@ -186,25 +184,23 @@ public class Reloader
 		return assembly;
 	}
 
-	static readonly ConcurrentDictionary<string, int> versionBumps = new();
+	//static readonly ConcurrentDictionary<string, int> versionBumps = new();
+
 	static Assembly ReloadAssembly(string path, bool reloading)
 	{
-		// can maybe improved by not using Cecil and instead doing this:
-		// https://chatgpt.com/c/68ae324c-793c-8322-b316-82043a43200c
-		//
 		if (reloading)
 		{
-			using var readStream = File.OpenRead(path);
-			var assm = AssemblyDefinition.ReadAssembly(readStream);
-			var oldVersion = assm.Name.Version;
-			var bump = versionBumps.AddOrUpdate(path, 1, (_, old) => old + 1);
-			var newVersion = new Version(oldVersion.Major, oldVersion.Minor, oldVersion.Build, oldVersion.Revision + bump);
-			assm.Name = new AssemblyNameDefinition(assm.Name.Name, newVersion);
-
+			//using var readStream = File.OpenRead(path);
+			//var assm = AssemblyDefinition.ReadAssembly(readStream);
+			//var oldVersion = assm.Name.Version;
+			//var bump = versionBumps.AddOrUpdate(path, 1, (_, old) => old + 1);
+			//var newVersion = new Version(oldVersion.Major, oldVersion.Minor, oldVersion.Build, oldVersion.Revision + bump);
+			//assm.Name = new AssemblyNameDefinition(assm.Name.Name, newVersion);
 			$"reloading {path}".LogMessage();
-			using var writeStream = new MemoryStream();
-			assm.Write(writeStream, new WriterParameters { WriteSymbols = false });
-			return Assembly.ReflectionOnlyLoad(writeStream.ToArray());
+			//using var writeStream = new MemoryStream();
+			//assm.Write(writeStream, new WriterParameters { WriteSymbols = false });
+			//return Assembly.ReflectionOnlyLoad(writeStream.ToArray());
+			return Assembly.ReflectionOnlyLoad(File.ReadAllBytes(path));
 		}
 
 		$"loading {path}".LogMessage();
