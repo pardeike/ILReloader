@@ -21,9 +21,15 @@ internal static class Tools
 	internal delegate void DetourMethodDelegate(MethodBase method, MethodBase replacement);
 	internal static readonly DetourMethodDelegate DetourMethod = MethodDelegate<DetourMethodDelegate>(Method("HarmonyLib.PatchTools:DetourMethod"));
 
+#if DEBUG
 	internal static void LogMessage(this string log) => Console.WriteLine($"[Info] {log}");
 	internal static void LogWarning(this string log) => Console.WriteLine($"[Warn] {log}");
 	internal static void LogError(this string log) => Console.WriteLine($"[Error] {log}");
+#else
+	internal static void LogMessage(this string log) { }
+	internal static void LogWarning(this string log) { }
+	internal static void LogError(this string log) { }
+#endif
 
 	internal static bool IsReflectionReloadable(this MethodBase method) => method.GetCustomAttributesData().Any(d => d.AttributeType.Name == reloadableTypeName);
 	internal static bool IsCecilReloadable(this MethodDefinition method) => method.CustomAttributes.Any(a => a.AttributeType.Name == reloadableTypeName);

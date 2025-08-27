@@ -1,4 +1,5 @@
-﻿using ILReloaderLib;
+﻿using HarmonyLib;
+using ILReloaderLib;
 using System.Reflection;
 
 namespace TestApplication;
@@ -7,7 +8,9 @@ public class App
 {
 	public static void Main(string[] args)
 	{
-		Reloader.Start();
+		Reloader.FixAssemblyLoading(SymbolExtensions.GetMethodInfo(() => RunLoop(default)));
+		Reloader.Watch(Path.Combine(Directory.GetCurrentDirectory(), "Mods"));
+
 		Console.WriteLine("App started");
 		if (args.Length != 1)
 		{

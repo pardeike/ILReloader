@@ -1,6 +1,5 @@
 ﻿using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Mono.Cecil;
 
@@ -8,54 +7,32 @@ namespace ILReloaderLib;
 
 public class Reloader
 {
-	static class PatchClass
-	{
-		public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-		{
-			return instructions.MethodReplacer(
-				SymbolExtensions.GetMethodInfo(() => Assembly.LoadFrom("")),
-				SymbolExtensions.GetMethodInfo(() => LoadOriginalAssembly(""))
-			);
-		}
+	static readonly Harmony harmony;
+	static bool MethodBodyReader_HandleNativeMethod_Prefix(MethodBase ___method) => ___method.ReflectedType == null;
 
-		public static bool Prefix(MethodBase ___method) => ___method.ReflectedType == null;
-	}
-
-	[MethodImpl(MethodImplOptions.NoInlining)]
-	public static void Start()
-	{
-		var harmony = new Harmony("brrainz.doorstop");
-		var original1 = AccessTools.Method("TestApplication.App:RunLoop");
-		var transpiler = SymbolExtensions.GetMethodInfo(() => PatchClass.Transpiler(default));
-		_ = harmony.Patch(original1, transpiler: new HarmonyMethod(transpiler));
-		var original2 = AccessTools.Method("HarmonyLib.MethodBodyReader:HandleNativeMethod");
-		var prefix = SymbolExtensions.GetMethodInfo(() => PatchClass.Prefix(default));
-		_ = harmony.Patch(original2, prefix: new HarmonyMethod(prefix));
-		instance = new Reloader();
-		$"reloader started".LogMessage();
-	}
-
-	internal static Reloader instance;
-	readonly string modsDir;
-	static readonly Dictionary<string, MethodBase> reloadableMembers = [];
-
-
+	internal static readonly Dictionary<string, MethodBase> reloadableMembers = [];
 	static readonly List<FileSystemWatcher> watchers = [];
-	static readonly Debouncer changedFiles = new(TimeSpan.FromSeconds(3), basePath =>
+	static readonly int reloadDelay = int.TryParse(Environment.GetEnvironmentVariable("ILRELOADER_DELAY"), out var d) ? d : 1;
+
+	static Reloader()
 	{
-		var path = $"{basePath}.dll";
-		try
+		harmony = new Harmony("brrainz.doorstop");
+		var original = AccessTools.Method("HarmonyLib.MethodBodyReader:HandleNativeMethod");
+		if (original != null)
 		{
-			$"reloading {path}".LogMessage();
-			using var readStream = File.OpenRead(path);
-			using var assembly = AssemblyDefinition.ReadAssembly(readStream);
-			Patch(assembly);
+			var prefix = SymbolExtensions.GetMethodInfo(() => MethodBodyReader_HandleNativeMethod_Prefix(default));
+			_ = harmony.Patch(original, prefix: new HarmonyMethod(prefix));
 		}
-		catch (Exception ex)
-		{
-			$"error during reloading {path}: {ex}".LogError();
-		}
-	});
+	}
+
+	public static void FixAssemblyLoading(MethodBase method)
+	{
+		var transpiler = SymbolExtensions.GetMethodInfo(() => AssemblyLoadingPatcher.Transpiler(default));
+		_ = harmony.Patch(method, transpiler: new HarmonyMethod(transpiler));
+	}
+
+	public static void Watch(string directory)
+		=> watchers.Add(CreateWatcher(directory));
 
 	static int counter = 0;
 	static DynamicMethod TranspilerFactory(MethodBase originalMethod)
@@ -80,24 +57,22 @@ public class Reloader
 
 	static void Patch(AssemblyDefinition newAssembly)
 	{
-		var harmony = new Harmony("brrainz.reloader");
+		var harmony = new Harmony("brrainz.ilreloader");
 		newAssembly.Modules.SelectMany(m => m.Types).SelectMany(Tools.AllReloadableMembers)
 			.Do(replacementMethod =>
 			{
 				try
 				{
-					var replacementId = replacementMethod.Id();
-
-					if (reloadableMembers.TryGetValue(replacementId, out var originalMethod))
+					if (reloadableMembers.TryGetValue(replacementMethod.Id(), out var originalMethod))
 					{
 						$"patching {originalMethod.FullDescription()} with {replacementMethod}".LogMessage();
 						var originalId = originalMethod.Id();
-
-						if (!string.IsNullOrEmpty(originalId) && replacementMethod != null)
+						if (!string.IsNullOrEmpty(originalId))
 						{
 							CecilConverter.Register(originalId, replacementMethod);
 							harmony.Unpatch(originalMethod, HarmonyPatchType.Transpiler, harmony.Id);
-							var transpilerFactory = new HarmonyMethod(SymbolExtensions.GetMethodInfo(() => TranspilerFactory(default)));
+							var m_TranspilerFactory = SymbolExtensions.GetMethodInfo(() => TranspilerFactory(default));
+							var transpilerFactory = new HarmonyMethod(m_TranspilerFactory) { priority = int.MaxValue };
 							_ = harmony.Patch(originalMethod, transpiler: transpilerFactory);
 						}
 						else
@@ -113,19 +88,13 @@ public class Reloader
 			});
 	}
 
-	internal Reloader()
+	static FileSystemWatcher CreateWatcher(string directory)
 	{
-		modsDir = Path.Combine(Directory.GetCurrentDirectory(), "Mods");
-		watchers.Add(CreateWatcher());
-	}
-
-	FileSystemWatcher CreateWatcher()
-	{
-		var watcher = new FileSystemWatcher(modsDir)
+		var watcher = new FileSystemWatcher(directory, "*.dll")
 		{
-			Filter = $"*Mod.dll",
 			IncludeSubdirectories = true,
-			EnableRaisingEvents = true
+			EnableRaisingEvents = true,
+			NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime
 		};
 		watcher.Error += (_, e) => e.GetException().ToString().LogError();
 		watcher.Changed += (_, e) =>
@@ -133,21 +102,23 @@ public class Reloader
 			var path = e.FullPath;
 			if (path.Replace('\\', '/').Contains("/obj/"))
 				return;
-			changedFiles.Add(path.WithoutFileExtension());
+			changedFiles.Add(path);
 		};
 		return watcher;
 	}
 
-	internal static Assembly LoadOriginalAssembly(string path)
+	static readonly Debouncer changedFiles = new(TimeSpan.FromSeconds(reloadDelay), path =>
 	{
-		$"loading {path}".LogMessage();
-		var assembly = Assembly.Load(File.ReadAllBytes(path));
-		assembly.GetTypes().SelectMany(type => Tools.AllReloadableMembers(type))
-			.Do(member =>
-			{
-				$"registered: {member.DeclaringType.FullName}.{member.Name}".LogMessage();
-				reloadableMembers[member.Id()] = member;
-			});
-		return assembly;
-	}
+		try
+		{
+			$"reloading {path}".LogMessage();
+			using var readStream = File.OpenRead(path);
+			using var assembly = AssemblyDefinition.ReadAssembly(readStream);
+			Patch(assembly);
+		}
+		catch (Exception ex)
+		{
+			$"error during reloading {path}: {ex}".LogError();
+		}
+	});
 }

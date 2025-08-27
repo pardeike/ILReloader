@@ -37,7 +37,7 @@ public class ModDialog : IAppDialog
     [MethodImpl(MethodImplOptions.NoInlining)]
     public void Prepare(DialogConfig config)
     {
-        Console.WriteLine("TEST 1x"); // for testing, edit this line and build so the dll changes
+        Console.WriteLine("TEST 1"); // for testing, edit this line and build so the dll changes
         myConfig = config;
     }
 
@@ -45,7 +45,7 @@ public class ModDialog : IAppDialog
     [MethodImpl(MethodImplOptions.NoInlining)]
     public void Show()
     {
-        Console.WriteLine("TEST 2x"); // for testing, edit this line and build so the dll changes
+        Console.WriteLine("TEST 2"); // for testing, edit this line and build so the dll changes
         Console.WriteLine($"Showing mod dialog with message: {myConfig.message}");
     }
 }
