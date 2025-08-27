@@ -104,77 +104,69 @@ public class Reloader
 			$"could not find replacement method".LogError();
 			yield break;
 		}
-		
+
 		var body = replacementMethod.Body;
 		var cecilInstructions = body.Instructions.ToArray();
-		var harmonyInstructions = new CodeInstruction[cecilInstructions.Length];
-		var labels = new Dictionary<int, Label>();
-		
-		// Create labels for all instructions that are branch targets
+
 		var branchTargets = new HashSet<int>();
 		for (var i = 0; i < cecilInstructions.Length; i++)
 		{
 			var cecilInstr = cecilInstructions[i];
-			if (cecilInstr.Operand is Mono.Cecil.Cil.Instruction targetInstr)
+			if (cecilInstr.Operand is Instruction targetInstr)
 			{
 				var targetIndex = Array.IndexOf(cecilInstructions, targetInstr);
 				if (targetIndex >= 0)
-					branchTargets.Add(targetIndex);
+					_ = branchTargets.Add(targetIndex);
 			}
-			else if (cecilInstr.Operand is Mono.Cecil.Cil.Instruction[] switchTargets)
+			else if (cecilInstr.Operand is Instruction[] switchTargets)
 			{
 				foreach (var target in switchTargets)
 				{
 					var targetIndex = Array.IndexOf(cecilInstructions, target);
 					if (targetIndex >= 0)
-						branchTargets.Add(targetIndex);
+						_ = branchTargets.Add(targetIndex);
 				}
 			}
 		}
-		
-		// Create labels for exception handler boundaries
+
 		foreach (var handler in body.ExceptionHandlers)
 		{
 			var tryStartIndex = Array.IndexOf(cecilInstructions, handler.TryStart);
 			var tryEndIndex = Array.IndexOf(cecilInstructions, handler.TryEnd);
 			var handlerStartIndex = Array.IndexOf(cecilInstructions, handler.HandlerStart);
 			var handlerEndIndex = Array.IndexOf(cecilInstructions, handler.HandlerEnd);
-			
-			if (tryStartIndex >= 0) branchTargets.Add(tryStartIndex);
-			if (tryEndIndex >= 0) branchTargets.Add(tryEndIndex);
-			if (handlerStartIndex >= 0) branchTargets.Add(handlerStartIndex);
-			if (handlerEndIndex >= 0) branchTargets.Add(handlerEndIndex);
-			
+
+			if (tryStartIndex >= 0) _ = branchTargets.Add(tryStartIndex);
+			if (tryEndIndex >= 0) _ = branchTargets.Add(tryEndIndex);
+			if (handlerStartIndex >= 0) _ = branchTargets.Add(handlerStartIndex);
+			if (handlerEndIndex >= 0) _ = branchTargets.Add(handlerEndIndex);
+
 			if (handler.FilterStart != null)
 			{
 				var filterStartIndex = Array.IndexOf(cecilInstructions, handler.FilterStart);
-				if (filterStartIndex >= 0) branchTargets.Add(filterStartIndex);
+				if (filterStartIndex >= 0) _ = branchTargets.Add(filterStartIndex);
 			}
 		}
-		
-		// Create Harmony labels for all branch targets
+
+		var labels = new Dictionary<int, Label>();
 		foreach (var targetIndex in branchTargets)
-		{
 			labels[targetIndex] = il.DefineLabel();
-		}
-		
-		// Convert instructions
+
+		var harmonyInstructions = new CodeInstruction[cecilInstructions.Length];
 		for (var i = 0; i < cecilInstructions.Length; i++)
 		{
 			var cecilInstr = cecilInstructions[i];
 			var opcode = Tools.ConvertOpcode(cecilInstr.OpCode);
-			object operand;
-			
+			object operand = null;
+
 			// Handle branch operands first - they use labels instead of conversion
-			if (cecilInstr.Operand is Mono.Cecil.Cil.Instruction targetInstr)
+			if (cecilInstr.Operand is Instruction targetInstr)
 			{
 				var targetIndex = Array.IndexOf(cecilInstructions, targetInstr);
 				if (targetIndex >= 0 && labels.TryGetValue(targetIndex, out var targetLabel))
 					operand = targetLabel;
-				else
-					operand = null; // should not happen if labels were created correctly
 			}
-			else if (cecilInstr.Operand is Mono.Cecil.Cil.Instruction[] switchTargets)
+			else if (cecilInstr.Operand is Instruction[] switchTargets)
 			{
 				var switchLabels = new Label[switchTargets.Length];
 				for (var j = 0; j < switchTargets.Length; j++)
@@ -186,30 +178,21 @@ public class Reloader
 				operand = switchLabels;
 			}
 			else
-			{
-				// Convert all other operands
 				operand = Tools.ConvertOperand(cecilInstr.Operand, il);
-			}
-			
+
 			var harmonyInstr = new CodeInstruction(opcode, operand);
-			
-			// Assign labels to instructions
 			if (labels.TryGetValue(i, out var label))
-			{
 				harmonyInstr.labels.Add(label);
-			}
-			
 			harmonyInstructions[i] = harmonyInstr;
 		}
-		
-		// Handle exception blocks
+
 		foreach (var handler in body.ExceptionHandlers)
 		{
 			var tryStartIndex = Array.IndexOf(cecilInstructions, handler.TryStart);
 			var tryEndIndex = Array.IndexOf(cecilInstructions, handler.TryEnd);
 			var handlerStartIndex = Array.IndexOf(cecilInstructions, handler.HandlerStart);
 			var handlerEndIndex = Array.IndexOf(cecilInstructions, handler.HandlerEnd);
-			
+
 			if (tryStartIndex >= 0 && tryEndIndex >= 0 && handlerStartIndex >= 0 && handlerEndIndex >= 0)
 			{
 				var blockType = handler.HandlerType switch
@@ -220,16 +203,13 @@ public class Reloader
 					ExceptionHandlerType.Filter => ExceptionBlockType.BeginExceptFilterBlock,
 					_ => ExceptionBlockType.BeginExceptionBlock
 				};
-				
-				// Begin exception block
+
 				var beginBlock = new ExceptionBlock(ExceptionBlockType.BeginExceptionBlock, handler.CatchType != null ? Tools.ResolveType(handler.CatchType) : null);
 				harmonyInstructions[tryStartIndex].blocks.Add(beginBlock);
-				
-				// Begin handler block
+
 				var handlerBlock = new ExceptionBlock(blockType, handler.CatchType != null ? Tools.ResolveType(handler.CatchType) : null);
 				harmonyInstructions[handlerStartIndex].blocks.Add(handlerBlock);
-				
-				// End exception block
+
 				if (handlerEndIndex < harmonyInstructions.Length)
 				{
 					var endBlock = new ExceptionBlock(ExceptionBlockType.EndExceptionBlock);
@@ -237,7 +217,7 @@ public class Reloader
 				}
 			}
 		}
-		
+
 		foreach (var instr in harmonyInstructions)
 			yield return instr;
 	}
@@ -251,18 +231,18 @@ public class Reloader
 				try
 				{
 					var replacementId = replacementMethod.Id();
-					
+
 					if (reloadableMembers.TryGetValue(replacementId, out var originalMethod))
 					{
 						$"patching {originalMethod.FullDescription()} with {replacementMethod}".LogMessage();
 						var originalId = originalMethod.Id();
-						
+
 						if (!string.IsNullOrEmpty(originalId) && replacementMethod != null)
 						{
 							replacementMembers[originalId] = replacementMethod;
 							harmony.Unpatch(originalMethod, HarmonyPatchType.Transpiler, harmony.Id);
 							var transpilerFactory = new HarmonyMethod(SymbolExtensions.GetMethodInfo(() => TranspilerFactory(default)));
-							harmony.Patch(originalMethod, transpiler: transpilerFactory);
+							_ = harmony.Patch(originalMethod, transpiler: transpilerFactory);
 						}
 						else
 						{

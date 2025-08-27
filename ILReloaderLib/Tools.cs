@@ -45,26 +45,26 @@ internal static class Tools
 
 	internal static string Id(this MethodBase member)
 	{
-		var sb = new StringBuilder(128);
-		sb.Append(member.DeclaringType.FullName);
-		sb.Append('.');
-		sb.Append(member.Name);
-		sb.Append('(');
-		sb.Append(string.Join(", ", member.GetParameters().Select(p => p.ParameterType.FullName)));
-		sb.Append(')');
-		return sb.ToString();
+		return new StringBuilder(128)
+			.Append(member.DeclaringType.FullName)
+			.Append('.')
+			.Append(member.Name)
+			.Append('(')
+			.Append(string.Join(", ", member.GetParameters().Select(p => p.ParameterType.FullName)))
+			.Append(')')
+			.ToString();
 	}
 
 	internal static string Id(this MethodDefinition member)
 	{
-		var sb = new StringBuilder(128);
-		sb.Append(member.DeclaringType.FullName);
-		sb.Append('.');
-		sb.Append(member.Name);
-		sb.Append('(');
-		sb.Append(string.Join(", ", member.Parameters.Select(p => p.ParameterType.FullName)));
-		sb.Append(')');
-		return sb.ToString();
+		return new StringBuilder(128)
+			.Append(member.DeclaringType.FullName)
+			.Append('.')
+			.Append(member.Name)
+			.Append('(')
+			.Append(string.Join(", ", member.Parameters.Select(p => p.ParameterType.FullName)))
+			.Append(')')
+			.ToString();
 	}
 
 	internal static IEnumerable<MethodBase> AllReloadableMembers(this Type type)
@@ -119,7 +119,7 @@ internal static class Tools
 			return a == b;
 		if (a.Length != b.Length)
 			return false;
-		for (int i = 0; i < a.Length; i++)
+		for (var i = 0; i < a.Length; i++)
 			if (a[i] != b[i])
 				return false;
 		return true;
@@ -130,17 +130,13 @@ internal static class Tools
 	static Dictionary<short, System.Reflection.Emit.OpCode> CreateOpcodeCache()
 	{
 		var cache = new Dictionary<short, System.Reflection.Emit.OpCode>();
-		
-		// Get all System.Reflection.Emit OpCodes and index them by their value
 		var emitOpcodeFields = typeof(System.Reflection.Emit.OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
 			.Where(f => f.FieldType == typeof(System.Reflection.Emit.OpCode));
-		
 		foreach (var field in emitOpcodeFields)
 		{
 			var opcode = (System.Reflection.Emit.OpCode)field.GetValue(null);
 			cache[opcode.Value] = opcode;
 		}
-		
 		return cache;
 	}
 
@@ -148,39 +144,22 @@ internal static class Tools
 	{
 		if (opcodeCache.TryGetValue(opcode.Value, out var emitOpcode))
 			return emitOpcode;
-		
 		throw new NotSupportedException($"Opcode {opcode.Name} (0x{opcode.Value:X4}) is not supported");
 	}
 
 	internal static object ConvertOperand(object operand, ILGenerator il)
 	{
-		if (operand is MethodDefinition method)
-			operand = ResolveMethodBase(method);
-		else if (operand is MethodReference methodRef)
-			operand = ResolveMethodBase(methodRef);
-		else if (operand is PropertyReference property)
-			operand = ResolveProperty(property);
-		else if (operand is FieldReference field)
-			operand = ResolveField(field);
-		else if (operand is TypeReference type)
-			operand = ResolveType(type);
-		else if (operand is VariableDefinition variable)
-			operand = il.DeclareLocal(ResolveType(variable.VariableType), variable.IsPinned);
+		if (operand is MethodReference methodRef)
+			return ResolveMethodBase(methodRef);
+		if (operand is PropertyReference property)
+			return ResolveProperty(property);
+		if (operand is FieldReference field)
+			return ResolveField(field);
+		if (operand is TypeReference type)
+			return ResolveType(type);
+		if (operand is VariableDefinition variable)
+			return il.DeclareLocal(ResolveType(variable.VariableType), variable.IsPinned);
 		return operand;
-	}
-
-	internal static MethodBase ResolveMethodBase(MethodDefinition methodDefinition)
-	{
-		var declaringType = ResolveType(methodDefinition.DeclaringType);
-		var parameters = methodDefinition.Parameters.ToArray();
-		var parameterTypes = new Type[parameters.Length];
-		for (var i = 0; i < parameters.Length; i++)
-			parameterTypes[i] = ResolveType(parameters[i].ParameterType);
-		var generics = methodDefinition.GenericParameters.ToArray();
-		var genericTypes = new Type[generics.Length];
-		for (var i = 0; i < generics.Length; i++)
-			genericTypes[i] = ResolveType(generics[i]);
-		return DeclaredMethod(declaringType, methodDefinition.Name, parameterTypes, genericTypes.Length == 0 ? null : genericTypes);
 	}
 
 	internal static MethodBase ResolveMethodBase(MethodReference methodReference)
@@ -190,8 +169,6 @@ internal static class Tools
 		var parameterTypes = new Type[parameters.Length];
 		for (var i = 0; i < parameters.Length; i++)
 			parameterTypes[i] = ResolveType(parameters[i].ParameterType);
-		
-		// Handle generic method references
 		if (methodReference is GenericInstanceMethod genericMethod)
 		{
 			var genericTypes = new Type[genericMethod.GenericArguments.Count];
@@ -199,7 +176,6 @@ internal static class Tools
 				genericTypes[i] = ResolveType(genericMethod.GenericArguments[i]);
 			return DeclaredMethod(declaringType, methodReference.Name, parameterTypes, genericTypes);
 		}
-		
 		return DeclaredMethod(declaringType, methodReference.Name, parameterTypes);
 	}
 
