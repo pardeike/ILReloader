@@ -18,7 +18,7 @@ internal class Debouncer
 	{
 		if (changes.TryGetValue(filePath, out var existingTimer))
 		{
-			existingTimer.Change(debouncePeriod, Timeout.InfiniteTimeSpan);
+			_ = existingTimer.Change(debouncePeriod, Timeout.InfiniteTimeSpan);
 			return;
 		}
 		changes[filePath] = new Timer(_ => TimerCallback(filePath), null, debouncePeriod, Timeout.InfiniteTimeSpan);
@@ -26,7 +26,7 @@ internal class Debouncer
 
 	private void TimerCallback(string filePath)
 	{
-		changes.TryRemove(filePath, out var timer);
+		_ = changes.TryRemove(filePath, out var timer);
 		timer?.Dispose();
 		action(filePath);
 	}
