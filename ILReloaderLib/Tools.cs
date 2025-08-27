@@ -8,23 +8,15 @@ using static HarmonyLib.AccessTools;
 
 namespace ILReloaderLib;
 
+// example attribute to mark methods and constructors as reloadable
+// copy this class into your own project to create your own attribute
 [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method)]
-internal class ReloadableAttribute : Attribute
-{
-}
-
-//static class Logger
-//{
-//	public static void Log(this string message)
-//	{
-//		using var logFile = new StreamWriter("Doorstop.log.txt", true);
-//		logFile.WriteLine($"[{DateTime.Now}] {message}");
-//	}
-//}
+internal class ReloadableAttribute : Attribute { }
 
 internal static class Tools
 {
 	static readonly string reloadableTypeName = typeof(ReloadableAttribute).Name;
+	static readonly Dictionary<short, System.Reflection.Emit.OpCode> opcodeCache = CreateOpcodeCache();
 
 	internal delegate void DetourMethodDelegate(MethodBase method, MethodBase replacement);
 	internal static readonly DetourMethodDelegate DetourMethod = MethodDelegate<DetourMethodDelegate>(Method("HarmonyLib.PatchTools:DetourMethod"));
@@ -35,6 +27,19 @@ internal static class Tools
 
 	internal static bool IsReflectionReloadable(this MethodBase method) => method.GetCustomAttributesData().Any(d => d.AttributeType.Name == reloadableTypeName);
 	internal static bool IsCecilReloadable(this MethodDefinition method) => method.CustomAttributes.Any(a => a.AttributeType.Name == reloadableTypeName);
+
+	static Dictionary<short, System.Reflection.Emit.OpCode> CreateOpcodeCache()
+	{
+		var cache = new Dictionary<short, System.Reflection.Emit.OpCode>();
+		var emitOpcodeFields = typeof(System.Reflection.Emit.OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
+			.Where(f => f.FieldType == typeof(System.Reflection.Emit.OpCode));
+		foreach (var field in emitOpcodeFields)
+		{
+			var opcode = (System.Reflection.Emit.OpCode)field.GetValue(null);
+			cache[opcode.Value] = opcode;
+		}
+		return cache;
+	}
 
 	internal static string WithoutFileExtension(this string filePath)
 	{
@@ -85,32 +90,16 @@ internal static class Tools
 
 	internal static bool NamesMatch(AssemblyName a, AssemblyName b)
 	{
-		if (!a.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase))
+		if (a.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase) == false)
 			return false;
 
-		// If the request specifies a public key token, require a match
 		var at = a.GetPublicKeyToken();
 		var bt = b.GetPublicKeyToken();
-		if (bt != null && bt.Length > 0)
-		{
-			if (!TokenEquals(at, bt))
-				return false;
-		}
-
-		// If the request specifies Culture, require a match
-		if (!string.IsNullOrEmpty(b.CultureName) && !string.Equals(a.CultureName ?? "", b.CultureName, StringComparison.OrdinalIgnoreCase))
+		if (bt != null && bt.Length > 0 && TokenEquals(at, bt) == false)
 			return false;
 
-		// Version: be flexible. If the request pins a version, try to match major/minor/build/revision.
-		// You can tighten this if needed.
-		if (b.Version != null)
-		{
-			// Accept equal or higher? For games/mods, equal is usually safest:
-			if (!Equals(a.Version, b.Version))
-			{ /* keep loose by default */ }
-		}
-
-		return true;
+		return string.IsNullOrEmpty(b.CultureName)
+			|| string.Equals(a.CultureName ?? "", b.CultureName, StringComparison.OrdinalIgnoreCase);
 	}
 
 	internal static bool TokenEquals(byte[] a, byte[] b)
@@ -123,21 +112,6 @@ internal static class Tools
 			if (a[i] != b[i])
 				return false;
 		return true;
-	}
-
-	static readonly Dictionary<short, System.Reflection.Emit.OpCode> opcodeCache = CreateOpcodeCache();
-
-	static Dictionary<short, System.Reflection.Emit.OpCode> CreateOpcodeCache()
-	{
-		var cache = new Dictionary<short, System.Reflection.Emit.OpCode>();
-		var emitOpcodeFields = typeof(System.Reflection.Emit.OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
-			.Where(f => f.FieldType == typeof(System.Reflection.Emit.OpCode));
-		foreach (var field in emitOpcodeFields)
-		{
-			var opcode = (System.Reflection.Emit.OpCode)field.GetValue(null);
-			cache[opcode.Value] = opcode;
-		}
-		return cache;
 	}
 
 	internal static System.Reflection.Emit.OpCode ConvertOpcode(Mono.Cecil.Cil.OpCode opcode)
@@ -201,7 +175,6 @@ internal static class Tools
 			{
 				if (type.Assembly.ReflectionOnly)
 					throw new TypeLoadException($"Resolved type {typeReference.FullName} to assembly {asm.FullName}, but that assembly is reflection-only");
-				// $"# {typeDefinition.FullName} -> {asm.FullName}".LogMessage();
 				return type;
 			}
 		}
@@ -211,7 +184,6 @@ internal static class Tools
 		{
 			if (type.Assembly.ReflectionOnly)
 				throw new TypeLoadException($"Resolved type {typeReference.FullName} to type within a reflection-only assembly");
-			// $"# {typeDefinition.FullName}".LogMessage();
 			return type;
 		}
 
