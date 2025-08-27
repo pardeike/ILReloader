@@ -2,6 +2,7 @@
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
+using Mono.Cecil;
 
 namespace ILReloaderLib;
 
@@ -38,7 +39,7 @@ public class Reloader
 	internal static Reloader instance;
 	readonly string modsDir;
 	static readonly Dictionary<string, MethodBase> reloadableMembers = [];
-	static readonly Dictionary<string, MethodBase> replacementMembers = [];
+	static readonly Dictionary<string, MethodDefinition> replacementMembers = [];
 
 	static readonly List<FileSystemWatcher> watchers = [];
 	static readonly Debouncer changedFiles = new(TimeSpan.FromSeconds(3), basePath =>
@@ -46,7 +47,9 @@ public class Reloader
 		var path = $"{basePath}.dll";
 		try
 		{
-			var assembly = ReloadAssembly(path, true);
+			$"reloading {path}".LogMessage();
+			using var readStream = File.OpenRead(path);
+			using var assembly = AssemblyDefinition.ReadAssembly(readStream);
 			Patch(assembly);
 		}
 		catch (Exception ex)
@@ -82,58 +85,41 @@ public class Reloader
 	static int counter = 0;
 	static DynamicMethod TranspilerFactory(MethodBase originalMethod)
 	{
-		if (replacementMembers.TryGetValue(originalMethod.Id(), out var replacementMethod) == false)
-		{
-			$"could not find replacement method".LogError();
-			return null;
-		}
-
-		var moduleGUID = replacementMethod.Module.ModuleVersionId.ToString();
-		var methodToken = replacementMethod.MetadataToken;
-
 		var t_cInstr = typeof(IEnumerable<CodeInstruction>);
-		var attributes = MethodAttributes.Public | MethodAttributes.Static;
+		var attributes = System.Reflection.MethodAttributes.Public | System.Reflection.MethodAttributes.Static;
 		var dm = new DynamicMethod($"TransientTranspiler{++counter}", attributes, CallingConventions.Standard, t_cInstr, [t_cInstr, typeof(ILGenerator)], typeof(Reloader), true);
 		var il = dm.GetILGenerator();
-		il.Emit(OpCodes.Ldstr, moduleGUID);
-		il.Emit(OpCodes.Ldc_I4, methodToken);
+		il.Emit(OpCodes.Ldstr, originalMethod.Id());
 		il.Emit(OpCodes.Ldarg_1);
-		il.Emit(OpCodes.Call, SymbolExtensions.GetMethodInfo(() => GetInstructions(default, default, default)));
+		il.Emit(OpCodes.Call, SymbolExtensions.GetMethodInfo(() => GetInstructions(default, default)));
 		il.Emit(OpCodes.Ret);
 		return dm;
 	}
 
-	static IEnumerable<CodeInstruction> GetInstructions(string moduleGUID, int methodToken, ILGenerator il)
+	static IEnumerable<CodeInstruction> GetInstructions(string methodId, ILGenerator il)
 	{
-		var replacementMethod = Tools.ReflectionOnlyGetMethodByModuleAndToken(moduleGUID, methodToken);
-		var instructions = PatchProcessor.GetOriginalInstructions(replacementMethod, il);
-		for (var i = 0; i < instructions.Count(); i++)
-			instructions[i].operand = Tools.ConvertOperand(instructions[i].operand, il);
-		return instructions;
+		if (replacementMembers.TryGetValue(methodId, out var replacementMethod) == false)
+		{
+			$"could not find replacement method".LogError();
+			yield break;
+		}
+		var body = replacementMethod.Body;
+		var instructions = body.Instructions.Select(i =>
+		{
+			var opcode = Tools.ConvertOpcode(i.OpCode);
+			var operand = Tools.ConvertOperand(i, il);
+			return new CodeInstruction(opcode, operand);
+		});
+		// TODO set instructions[i].labels
+		// TODO set instructions[i].blocks
+		foreach (var instr in instructions)
+			yield return instr;
 	}
 
-	static IEnumerable<Type> GetTypesSafe(Assembly assembly)
-	{
-		try
-		{
-			return assembly.GetTypes();
-		}
-		catch (ReflectionTypeLoadException ex)
-		{
-			$"Wwarning: Some types could not be loaded from assembly {assembly.FullName}".LogWarning();
-			foreach (var loaderException in ex.LoaderExceptions)
-			{
-				if (loaderException != null)
-					$"loader exception: {loaderException.Message}".LogWarning();
-			}
-			return ex.Types.Where(t => t != null);
-		}
-	}
-
-	static void Patch(Assembly newAssembly)
+	static void Patch(AssemblyDefinition newAssembly)
 	{
 		var harmony = new Harmony("brrainz.reloader");
-		GetTypesSafe(newAssembly).SelectMany(Tools.AllReloadableMembers)
+		newAssembly.Modules.SelectMany(m => m.Types).SelectMany(Tools.AllReloadableMembers)
 			.Do(replacementMethod =>
 			{
 				if (reloadableMembers.TryGetValue(replacementMethod.Id(), out var originalMethod))
@@ -174,7 +160,8 @@ public class Reloader
 
 	internal static Assembly LoadOriginalAssembly(string path)
 	{
-		var assembly = ReloadAssembly(path, false);
+		$"loading {path}".LogMessage();
+		var assembly = Assembly.Load(File.ReadAllBytes(path));
 		assembly.GetTypes().SelectMany(type => Tools.AllReloadableMembers(type))
 			.Do(member =>
 			{
@@ -182,28 +169,5 @@ public class Reloader
 				reloadableMembers[member.Id()] = member;
 			});
 		return assembly;
-	}
-
-	//static readonly ConcurrentDictionary<string, int> versionBumps = new();
-
-	static Assembly ReloadAssembly(string path, bool reloading)
-	{
-		if (reloading)
-		{
-			//using var readStream = File.OpenRead(path);
-			//var assm = AssemblyDefinition.ReadAssembly(readStream);
-			//var oldVersion = assm.Name.Version;
-			//var bump = versionBumps.AddOrUpdate(path, 1, (_, old) => old + 1);
-			//var newVersion = new Version(oldVersion.Major, oldVersion.Minor, oldVersion.Build, oldVersion.Revision + bump);
-			//assm.Name = new AssemblyNameDefinition(assm.Name.Name, newVersion);
-			$"reloading {path}".LogMessage();
-			//using var writeStream = new MemoryStream();
-			//assm.Write(writeStream, new WriterParameters { WriteSymbols = false });
-			//return Assembly.ReflectionOnlyLoad(writeStream.ToArray());
-			return Assembly.ReflectionOnlyLoad(File.ReadAllBytes(path));
-		}
-
-		$"loading {path}".LogMessage();
-		return Assembly.Load(File.ReadAllBytes(path));
 	}
 }
