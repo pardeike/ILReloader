@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using Mono.Cecil;
@@ -24,6 +24,8 @@ public class Reloader
 			_ = harmony.Patch(original, prefix: new HarmonyMethod(prefix));
 		}
 	}
+
+	public static void SetLogger(Action<string> logger) => Tools.Logger = logger;
 
 	public static void FixAssemblyLoading(MethodBase method)
 	{

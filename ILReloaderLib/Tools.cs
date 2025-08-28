@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using System.Reflection;
@@ -21,15 +21,11 @@ internal static class Tools
 	internal delegate void DetourMethodDelegate(MethodBase method, MethodBase replacement);
 	internal static readonly DetourMethodDelegate DetourMethod = MethodDelegate<DetourMethodDelegate>(Method("HarmonyLib.PatchTools:DetourMethod"));
 
-#if DEBUG
-	internal static void LogMessage(this string log) => Console.WriteLine($"[Info] {log}");
-	internal static void LogWarning(this string log) => Console.WriteLine($"[Warn] {log}");
-	internal static void LogError(this string log) => Console.WriteLine($"[Error] {log}");
-#else
-	internal static void LogMessage(this string log) { }
-	internal static void LogWarning(this string log) { }
-	internal static void LogError(this string log) { }
-#endif
+
+	internal static Action<string> Logger = s => Console.WriteLine(s);
+	internal static void LogMessage(this string log) => Logger($"[Info] {log}");
+	internal static void LogWarning(this string log) => Logger($"[Warn] {log}");
+	internal static void LogError(this string log) => Logger($"[Error] {log}");
 
 	internal static bool IsReloadable(this MethodBase method) => method.GetCustomAttributes(true).Any(a => a.GetType().Name == reloadableTypeName);
 	internal static bool IsCecilReloadable(this MethodDefinition method) => method.CustomAttributes.Any(a => a.AttributeType.Name == reloadableTypeName);
@@ -139,6 +135,8 @@ internal static class Tools
 			return ResolveType(type);
 		if (operand is VariableDefinition variable)
 			return il.DeclareLocal(ResolveType(variable.VariableType), variable.IsPinned);
+		if (operand is ParameterDefinition parameter)
+			return parameter.Index + 1;
 		return operand;
 	}
 
