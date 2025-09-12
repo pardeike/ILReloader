@@ -30,7 +30,10 @@ static class AssemblyLoadingPatcher
 	static Assembly LoadFrom(string path)
 	{
 		$"loading {path}".LogMessage();
-		var assembly = Assembly.Load(File.ReadAllBytes(path));
-		return RegisterTypes(assembly);
+		var pe = File.ReadAllBytes(path);
+		var pdbPath = Path.ChangeExtension(path, ".pdb");
+		var pdb = File.Exists(pdbPath) ? File.ReadAllBytes(pdbPath) : null;
+		var asm = pdb != null ? Assembly.Load(pe, pdb) : Assembly.Load(pe);
+		return RegisterTypes(asm);
 	}
 }
