@@ -147,6 +147,8 @@ internal static class Tools
 		var parameterTypes = new Type[parameters.Length];
 		for (var i = 0; i < parameters.Length; i++)
 			parameterTypes[i] = ResolveType(parameters[i].ParameterType);
+		if (methodReference.Name is ".ctor" or ".cctor")
+			return DeclaredConstructor(declaringType, parameterTypes);
 		if (methodReference is GenericInstanceMethod genericMethod)
 		{
 			var genericTypes = new Type[genericMethod.GenericArguments.Count];
