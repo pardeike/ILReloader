@@ -1,12 +1,11 @@
-# ILReloader Demo
+# ILReloader
 
-This repository is a playground for a library 'ILReloaderLib' that allows for hot reloading of changed mods. In order to develop and test it, a more complex setup is needed and is grouped here under one solution containing three projects:
+**ILReloaderLib** is a library that enables hot reloading of changed mod assemblies. It detects changes in mod DLLs, reloads them, and patches annotated methods automatically using [Harmony](https://github.com/pardeike/Harmony).
 
-- TestApplication
-- ILReloaderLib
-- TestMod
+This repository also contains two supporting projects used for development and testing:
 
-The idea is to create a minimal console application 'TestApplication' that will load a test mod 'TestMod' and run it to implement some features. The application uses the 'ILReloaderLib' to detect changes in the mods dll and the library will reload the changed dll and patch the annotated methods.
+- **TestApplication** – a minimal console application that loads and runs a test mod
+- **TestMod** – a sample mod used to verify the hot reload workflow
 
 To run the solution:
 
