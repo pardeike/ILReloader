@@ -1,0 +1,46 @@
+name: Publish NuGet (ILReloaderLib)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 1.0.5). Leave empty to use the release tag."
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET (from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Determine version
+        shell: bash
+        run: |
+          v="${{ github.event.inputs.version }}"
+          if [ -z "$v" ]; then v="${{ github.event.release.tag_name }}"; fi
+          if [ -z "$v" ]; then v="${GITHUB_REF_NAME}"; fi
+          v="${v#v}"   # allow tags like v1.0.5
+          if [ -z "$v" ]; then echo "No version provided"; exit 1; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "Publishing VERSION=$v"
+
+      - name: Restore
+        run: dotnet restore ILReloader.sln
+
+      - name: Pack ILReloaderLib
+        run: dotnet pack ILReloaderLib/ILReloaderLib.csproj -c Release -p:Version=${{ env.VERSION }} -o ./artifacts
+
+      - name: Push to nuget.org
+        run: dotnet nuget push "./artifacts/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
